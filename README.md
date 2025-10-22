@@ -21,3 +21,5 @@ download, install and execute just easy as that. The sharkle will not be clickab
 Download the sharkle.appImage and place it somewhere safe. Then open it doing `./sharkle.appImage` after that it should just open. If you enable auto-launch you shouldn't move the appImage file from place. 
 The sharkle will appear in the tasks list (the one from alt + tab) -anyone who want to help with that also appreciated-
 
+Notes from Collie: Linux download currently not existent for this version, sadly. I'll add one soon. This whole version is just fine tuning/tweaks of the original app by Ignacio! 
+
