@@ -1,144 +1,203 @@
-const { app, BrowserWindow } = require('electron')
-const ipc = require('electron').ipcMain
-const Menu = require('electron').Menu
-const MenuItem = require('electron').MenuItem
+const { app, BrowserWindow, Menu, MenuItem, ipcMain, screen } = require('electron');
 const windowStateKeeper = require('electron-window-state');
 const AutoLaunch = require('auto-launch');
-
-
+const Store = require('electron-store');
 let win = null;
-let  autolaunchConfig = {
-  name: "sharke-meter"
-}
 
-if(process.env.APPIMAGE){
-  autolaunchConfig = {...autolaunchConfig, path:process.env.APPIMAGE}
+// Store information
+const store = new Store({
+    defaults: {
+        invertedState: false,
+        windowSize: 240,
+        alwaysOnTopState: false 
+    }
+});
+let currentWindowSize = store.get('windowSize', 240);
+let isInvertedState = store.get('invertedState');
+let isAlwaysOnTop = store.get('alwaysOnTopState', false);
+
+
+// Auto launch information
+let autolaunchConfig = { name: "SharklePal" };
+if (process.env.APPIMAGE) {
+    autolaunchConfig.path = process.env.APPIMAGE;
 }
 const autoLauncher = new AutoLaunch(autolaunchConfig);
+const disableAutolaunchLabel = "I'm awful and I don't want to see Sharkie again";
+const enableAutolaunchLabel = "I really love Sharkie and I want it on my PC every time it starts";
 
-const disableAutolaunchLabel = "I'm awfull and i dont want to se sharkie again"
-const endableAutolaunchLabel = "I really love sharkie and I want it on my pc every time it starts"
-
-
+//decreases overhead
 app.disableHardwareAcceleration();
-function createWindow () {
 
-  let mainWindowState = windowStateKeeper({
-    defaultWidth: 240,
-    defaultHeight: 240
-  });
-
-  win = new BrowserWindow({
-    width: mainWindowState.width,
-    height: mainWindowState.height,
-    x:mainWindowState.x,
-    y:mainWindowState.y,
-    frame:false,
-    resizable:false,
-    transparent:true,
-    webPreferences: {
-      nodeIntegration: true,
-      enableRemoteModule: true,
-
-    }
-  })
-  win.loadFile('index.html')
-  win.setMenu(null);
-  win.setSkipTaskbar(true);
-  win.isMenuBarVisible(false);
-  mainWindowState.manage(win);
-
+//creates window
+function createWindow() {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    const initialX = screenWidth - currentWindowSize;
+    const initialY = screenHeight - currentWindowSize;
+    const mainWindowState = windowStateKeeper({
+        defaultWidth: currentWindowSize,
+        defaultHeight: currentWindowSize,
+        defaultX: initialX,
+        defaultY: initialY
+    });
+    const finalX = mainWindowState.x !== undefined ? mainWindowState.x : initialX;
+    const finalY = mainWindowState.y !== undefined ? mainWindowState.y : initialY;
+    win = new BrowserWindow({
+        width: currentWindowSize,
+        height: currentWindowSize,
+        x: finalX,
+        y: finalY,
+        frame: false,
+        resizable: false,
+        transparent: true,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+    win.loadFile('index.html');
+    mainWindowState.manage(win);
+    resizeWindow(currentWindowSize);
+    win.setMenu(null);
+    win.setSkipTaskbar(true);
+    win.isMenuBarVisible(false);
+    win.setAlwaysOnTop(isAlwaysOnTop, 'normal');
+    win.webContents.on('did-finish-load', () => {
+        win.webContents.send('load-settings', {
+            inverted: isInvertedState,
+            size: currentWindowSize
+        });
+        updateFullMenu();
+    });
 }
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-app.on('ready', function () {
-  setTimeout(createWindow,300)
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
 
-
-let menu = new Menu()
-const bigMenuItem = new MenuItem({
-  label: 'Big sharkie',
-  click: () => {
-    resizeWindow(240);
-  }
-})
-
-const mediumMenuItem = new MenuItem({
-  label: 'Medium sharkie',
-  click: () => {
-    resizeWindow(140);
-  }
-})
-
-const smallMenuItem = new MenuItem({
-  label: 'Small sharkie',
-  click: () => {
-    resizeWindow(80);
-  }
-})
-
-const close = new MenuItem({
-  label: 'kill sharkie :(',
-  click: () => {
-    app.quit()
-  }
-})
-
-const autolaunchMenuItem = (isEnabled) => new MenuItem({
-  label: isEnabled? disableAutolaunchLabel : endableAutolaunchLabel,
-  role:'autolaunch',
-  click: () => {
-    if(isEnabled){
-      autoLauncher.disable()
-    }else{
-      autoLauncher.enable();
-    }
-    updateAutolaunchMenuOptionTo(!isEnabled)
-  }
-})
-
-populateMenuWithEverithingButTheAutolaunch(menu);
-addAutolaunchMenuOptionCheckingSystem();
-
-ipc.on('right-click', () => {
-  menu.popup(win)
-})
-
-function populateMenuWithEverithingButTheAutolaunch(menu){
-  menu.append(bigMenuItem);
-  menu.append(mediumMenuItem);
-  menu.append(smallMenuItem);
-  menu.append(close);
-}
-
-function addAutolaunchMenuOptionCheckingSystem(){
-  autoLauncher.isEnabled().then((isEnabled)=>{
-    addAutolaunchMenuOption(isEnabled)
-  })
-}
-
-function addAutolaunchMenuOption(isEnabled){
-  const autolaunchItem = autolaunchMenuItem(isEnabled)
-  menu.append(autolaunchItem)
-}
-
-//since electron menu is not dinamic the menu is fully regenerated
-function updateAutolaunchMenuOptionTo(isEndabled){
-  menu = new Menu()
-  populateMenuWithEverithingButTheAutolaunch(menu)
-  addAutolaunchMenuOption(isEndabled)
-}
+app.on('ready', () => {
+    createWindow();
+});
 
 function resizeWindow(size) {
-  win.setResizable(true);
-  win.setSize(size, size);
-  win.setResizable(false);
+    if (win) {
+        currentWindowSize = size;
+        store.set('windowSize', size);
+        const bounds = win.getBounds();
+        win.setBounds({
+            x: bounds.x,
+            y: bounds.y,
+            width: size,
+            height: size
+        });
+        win.webContents.send('window-resize', size);
+    }
 }
 
 
+
+// MENU
+let menu = new Menu();
+function updateFullMenu() {
+    const updatedMenu = new Menu();
+    populateMenuWithEverythingButTheAutolaunch(updatedMenu);
+    addAlwaysOnTopMenuOption(updatedMenu);
+    addAutolaunchMenuOptionCheckingSystem(updatedMenu);
+    Menu.setApplicationMenu(updatedMenu);
+    menu = updatedMenu;
+}
+function updateAutolaunchMenuOptionTo(isEnabled) {
+    updateFullMenu();
+}
+function populateMenuWithEverythingButTheAutolaunch(menu) {
+    menu.append(new MenuItem({ label: 'Big Sharkle', click: () => resizeWindow(240) }));
+    menu.append(new MenuItem({ label: 'Medium Sharkle', click: () => resizeWindow(140) }));
+    menu.append(new MenuItem({ label: 'Small Sharkle', click: () => resizeWindow(80) }));
+    menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({
+        label: 'Invert Sharkle',
+        click: () => {
+            isInvertedState = !isInvertedState;
+            store.set('invertedState', isInvertedState);
+            if (win) {
+                win.webContents.send('invert-sharkie', isInvertedState);
+            }
+        }
+    }));
+    menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({ label: 'Kill Sharkle :(', click: () => app.quit() }));
+}
+
+function addAlwaysOnTopMenuOption(menu) {
+    const label = isAlwaysOnTop ? 'Unpin Sharkle' : 'Keep Sharkle on Top';
+    menu.append(new MenuItem({
+        label: label,
+        click: () => {
+            isAlwaysOnTop = !isAlwaysOnTop;
+            store.set('alwaysOnTopState', isAlwaysOnTop);
+            if (win) {
+                win.setAlwaysOnTop(isAlwaysOnTop, 'normal');
+            }
+            updateFullMenu();
+        }
+    }));
+    menu.append(new MenuItem({ type: 'separator' }));
+}
+
+function addAutolaunchMenuOptionCheckingSystem(menuToAppendTo) {
+    autoLauncher.isEnabled().then((isEnabled) => {
+        addAutolaunchMenuOption(isEnabled, menuToAppendTo);
+    });
+}
+
+function addAutolaunchMenuOption(isEnabled, menuToAppendTo) {
+    const autolaunchItem = new MenuItem({
+        label: isEnabled ? disableAutolaunchLabel : enableAutolaunchLabel,
+        role: 'autolaunch',
+        click: () => {
+            if (isEnabled) {
+                autoLauncher.disable();
+            } else {
+                autoLauncher.enable();
+            }
+            updateAutolaunchMenuOptionTo(!isEnabled);
+        }
+    });
+    menuToAppendTo.append(autolaunchItem);
+}
+
+populateMenuWithEverythingButTheAutolaunch(menu);
+Menu.setApplicationMenu(menu);
+
+ipcMain.on('mouse-down', (event, startCoords) => {
+    if (startCoords.button === 2) {
+        menu.popup({
+            window: win,
+            x: startCoords.x,
+            y: startCoords.y
+        });
+    }
+});
+
+ipcMain.on('get-window-position', (event) => {
+    if (win) {
+        const [x, y] = win.getPosition();
+        event.returnValue = { x, y };
+    } else {
+        event.returnValue = { x: 0, y: 0 };
+    }
+});
+
+ipcMain.on('set-window-position', (event, newPos) => {
+    if (win) {
+        win.setBounds({
+            x: newPos.x,
+            y: newPos.y,
+            width: currentWindowSize,
+            height: currentWindowSize
+        });
+    }
+});

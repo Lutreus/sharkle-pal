@@ -1,31 +1,33 @@
 {
-  "name": "sharkle-meter",
-  "version": "0.0.1",
+  "name": "sharkle-pal",
+  "version": "0.0.3",
   "description": "Html visualizer",
   "main": "main.js",
   "scripts": {
     "start": "electron . --enable-transparent-visuals",
-    "dist": "electron-builder -mwl"
+    "dist": "electron-builder -w"
   },
   "build": {
-    "appId": "sharkle-meter"
+    "appId": "sharkle-pal",
+    "icon": "icon.png" 
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LogicWrite/sharkie-meter.git"
+    "url": "git+https://github.com/Lutreus/sharkle-pal.git"
   },
-  "author": "Ignacio Pugliese",
+  "author": "Ignacio Pugliese, Collie Otter",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/LogicWrite/sharkie-meter/issues"
+    "url": "https://github.com/Lutreus/sharkle-pal/issues"
   },
   "homepage": "https://github.com/LogicWrite/sharkie-meter#readme",
   "devDependencies": {
     "electron": "^11.2.0",
-    "electron-builder": "^22.10.5"
+    "electron-builder": "^22.14.13"
   },
   "dependencies": {
-    "auto-launch": "^5.0.5",
+    "auto-launch": "^5.0.6",
+    "electron-store": "^8.2.0",
     "electron-window-state": "^5.0.3"
   }
 }

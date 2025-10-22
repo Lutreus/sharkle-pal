@@ -2,12 +2,242 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Hello World!</title>
-    <link rel="stylesheet" href="./sharkieCss.css">
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+    <title>Sharkle Pal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        html, body {
+            margin: 0; padding: 0; overflow: hidden;
+            height: 100%; width: 100%;
+            background-color: transparent; 
+            display: flex; justify-content: center; align-items: center;
+        }
+        .sharkie-container {
+            width: 100%; height: 100%; 
+            display: flex; justify-content: center;
+            align-items: center; user-select: none;
+            -webkit-app-region: no-drag; 
+        }
+        .sharkie-image { max-width: 100%; height: auto; pointer-events: none; transition: filter 0.3s ease;        }
+        .inverted { filter: hue-rotate(180deg) saturate(1.5);}
+    </style>
 </head>
 <body>
-    <img id="sharkie-idle" class="sharkie" src="animation-idle.gif">
+    <div id="sharkie-container" class="sharkie-container">
+        <img id="sharkie-image" class="sharkie-image" src="./animation-idle.webp" alt="Sharkie Character">
+    </div>
+
+        <script>
+        //CONSTANT VARIABLES
+        const ipcRenderer = require('electron').ipcRenderer;
+        const IS_DRAG_THRESHOLD_MS = 150;
+        const IS_CLICK_THRESHOLD_DIST = 50; 
+        const SHARKIE_SLEEP_CHANCE = 0.25; 
+        const SHARKIE_SLEEP_CHECK_INTERVAL_MS = 60 * 60 * 1000; 
+        const sharkieContainer = document.getElementById("sharkie-container");
+        const sharkieImage = document.getElementById("sharkie-image");
+        const audioSources = [
+            './sharkleSound1.aac', './sharkleSound2.aac', './sharkleSound3.aac', 
+            './sharkleSound4.aac', './sharkleSound5.aac', './sharkleSound6.aac', 
+            './sharkleSound7.aac', './sharkleSound8.aac'
+        ];
+        const WEBP_PATHS = {
+            IDLE_NORMAL: './animation-idle.webp',
+            IDLE_INVERT: './animation-idle2.webp',
+            CLICK_NORMAL: './animation-click.webp',
+            CLICK_INVERT: './animation-click2.webp',
+            DRAG_NORMAL: './drag.webp',
+            DRAG_INVERT: './drag2.webp',
+            SLEEP_NORMAL: './eepy.webp',
+            SLEEP_INVERT: './eepy2.webp'
+        };
+        
+        //OTHER VARS
+        let isInverted = false; 
+        let isDraggingMode = false; 
+        let isMouseDown = false; 
+        let mouseDownTime = 0;
+        let startGlobalX = 0;
+        let startGlobalY = 0;
+        let windowStartX = 0;
+        let windowStartY = 0;
+        let mouseButtonDown = 0; 
+        let playSoundIndex = 0;
+        let isSleeping = false; 
+        let sleepIntervalId = null; 
+
+        //ANIMATE FUNCTIONS
+        function getWebpPath(action) {
+            const key = `${action}_${isInverted ? 'INVERT' : 'NORMAL'}`;
+            return WEBP_PATHS[key] || WEBP_PATHS.IDLE_NORMAL;
+        }
+
+        function startIdleAnimation() {
+            clearTimeout(window._clickTimeoutId);
+            isSleeping = false;
+            sharkieContainer.style.cursor = 'grab';
+            if (sharkieImage.src !== getWebpPath('IDLE')) {
+                sharkieImage.src = getWebpPath('IDLE');
+            }
+        }
+
+        function startDragAnimation() {
+            clearTimeout(window._clickTimeoutId);
+            isSleeping = false;
+            sharkieImage.src = getWebpPath('DRAG');
+            sharkieContainer.style.cursor = 'grabbing';
+        }
+
+        function startSleepAnimation() {
+            if (isDraggingMode || isSleeping || window._clickTimeoutId) return; 
+            isSleeping = true;
+            sharkieImage.src = getWebpPath('SLEEP');
+            sharkieContainer.style.cursor = 'default';
+        }
+
+        //CLICK FUNCTION
+        function playClickAnimationAndSound() {
+            clearTimeout(window._clickTimeoutId);
+            isSleeping = false;
+            sharkieImage.src = getWebpPath('CLICK');
+            const audioSrc = audioSources[playSoundIndex];
+            const audio = new Audio(audioSrc);
+            playSoundIndex = (playSoundIndex + 1) % audioSources.length;
+            audio.play().catch(error => {
+                console.warn("Audio playback failed (requires user interaction first):", error);
+            });
+            
+            window._clickTimeoutId = setTimeout(startIdleAnimation, 1600);
+        }
+        
+        // SLEEP INTERVAL LOGIC
+        function checkSleepChance() {
+            if (isDraggingMode || isSleeping || window._clickTimeoutId) {
+                return;
+            }
+
+            if (Math.random() < SHARKIE_SLEEP_CHANCE) {
+                startSleepAnimation();
+            }
+        }
+
+        function initSleepCheck() {
+            if (sleepIntervalId) {
+                clearInterval(sleepIntervalId);
+            }
+            sleepIntervalId = setInterval(checkSleepChance, SHARKIE_SLEEP_CHECK_INTERVAL_MS);
+        }
+        
+        initSleepCheck();
+
+        //END OF DRAG...
+        const globalMouseUpHandler = (e) => {
+            if (!isMouseDown || e.button !== mouseButtonDown) return; 
+            const elapsedMs = Date.now() - mouseDownTime;
+            const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
+            document.body.releaseCapture && document.body.releaseCapture();
+            const wasDragging = isDraggingMode;
+            isMouseDown = false;
+            isDraggingMode = false;
+            mouseButtonDown = 0;
+            
+            if (wasDragging) {
+                sharkieContainer.style.cursor = 'grab';
+                startIdleAnimation();
+            } 
+            
+            // This is the click action handler (e.button === 0 is left click)
+            if (elapsedMs < IS_DRAG_THRESHOLD_MS && distMoved < IS_CLICK_THRESHOLD_DIST && e.button === 0) {
+                playClickAnimationAndSound();
+            }
+        };
+        document.addEventListener('mouseup', globalMouseUpHandler);
+
+        sharkieContainer.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            mouseButtonDown = e.button; 
+            mouseDownTime = Date.now();
+            startGlobalX = e.screenX;
+            startGlobalY = e.screenY;
+
+            // An immediate mousedown *while* sleeping should wake the pal up before drag/click finishes.
+            if (isSleeping && e.button === 0) {
+                startIdleAnimation();
+            }
+        
+            if (e.button === 2) { 
+                ipcRenderer.send('mouse-down', { button: e.button, x: e.clientX, y: e.clientY });
+            }
+            
+            document.body.setCapture && document.body.setCapture(); 
+        });
+
+        //ensure menu shows.
+        sharkieContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault(); 
+        });
+
+        //Dragging
+        sharkieContainer.addEventListener('mousemove', (e) => {
+            if (!isMouseDown || e.buttons === 0 || (e.buttons & (1 << mouseButtonDown)) === 0) return;
+            if (mouseButtonDown !== 0) return; 
+            if (isSleeping) {
+                const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
+                if (distMoved > 5) { 
+                    startIdleAnimation(); 
+                }
+                return;
+            }
+            if (!isDraggingMode) {
+                const elapsedMs = Date.now() - mouseDownTime;
+                const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
+
+                if (elapsedMs >= IS_DRAG_THRESHOLD_MS || distMoved > IS_CLICK_THRESHOLD_DIST) {
+                    isDraggingMode = true;
+                    startDragAnimation();
+                    const pos = ipcRenderer.sendSync('get-window-position'); 
+                    windowStartX = pos.x;
+                    windowStartY = pos.y;
+                }
+            } 
+            if (isDraggingMode) {
+                const deltaX = e.screenX - startGlobalX;
+                const deltaY = e.screenY - startGlobalY;
+                
+                ipcRenderer.send('set-window-position', { 
+                    x: windowStartX + deltaX,
+                    y: windowStartY + deltaY
+                });
+            }
+        });
+
+        //MISC
+        ipcRenderer.on('load-settings', (event, settings) => {
+            isInverted = settings.inverted;
+            sharkieImage.classList.toggle('inverted', isInverted);
+            startIdleAnimation();
+        });
+
+        ipcRenderer.on('invert-sharkie', (event, newInvertedState) => {
+            isInverted = newInvertedState;
+            sharkieImage.classList.toggle('inverted', isInverted);
+            
+            if (isDraggingMode) {
+                sharkieImage.src = getWebpPath('DRAG');
+            } else if (isSleeping) {
+                sharkieImage.src = getWebpPath('SLEEP');
+            } else {
+                startIdleAnimation();
+            }
+        });
+
+        ipcRenderer.on('window-resize', (event, newSize) => {
+            if (!isDraggingMode && !isSleeping && !window._clickTimeoutId) {
+                startIdleAnimation();
+            }
+        });
+        
+    </script>
 </body>
 </html>
-<script src="sharkie.js"></script>
