@@ -8,109 +8,99 @@
     
     <style>
         html, body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            height: 100%;
-            width: 100%;
+            margin: 0; padding: 0; overflow: hidden;
+            height: 100%; width: 100%;
             background-color: transparent; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            display: flex; justify-content: center; align-items: center;
         }
-
         .sharkie-container {
-            width: 100%; 
-            height: 100%; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: grab;
-            user-select: none;
-            /* FIX: Disable native drag. We handle dragging entirely in JS now. */
+            width: 100%; height: 100%; 
+            display: flex; justify-content: center;
+            align-items: center; user-select: none;
             -webkit-app-region: no-drag; 
         }
-
-        .sharkie-image {
-            max-width: 100%;
-            height: auto;
-            pointer-events: none;
-            transition: filter 0.3s ease;
-        }
-
-        .inverted {
-            filter: hue-rotate(180deg) saturate(1.5);
-        }
+        .sharkie-image { max-width: 100%; height: auto; pointer-events: none; transition: filter 0.3s ease;        }
+        .inverted { filter: hue-rotate(180deg) saturate(1.5);}
     </style>
 </head>
 <body>
     <div id="sharkie-container" class="sharkie-container">
-        <img id="sharkie-image" class="sharkie-image" src="./animation-idle.gif" alt="Sharkie Character">
+        <img id="sharkie-image" class="sharkie-image" src="./animation-idle.webp" alt="Sharkie Character">
     </div>
-    
-    <script>
+
+        <script>
+        //CONSTANT VARIABLES
         const ipcRenderer = require('electron').ipcRenderer;
-
-        // --- Constants and State ---
-        const IS_DRAG_THRESHOLD_MS = 250;
+        const IS_DRAG_THRESHOLD_MS = 150;
         const IS_CLICK_THRESHOLD_DIST = 50; 
-
-        let isInverted = false; 
-        let isDraggingMode = false; 
-        let isMouseDown = false; // Tracks if ANY mouse button is down
-        let mouseDownTime = 0;
-        let startGlobalX = 0;
-        let startGlobalY = 0;
-        let windowStartX = 0;
-        let windowStartY = 0;
-        let mouseButtonDown = 0; // Tracks the button pressed down
-
+        const SHARKIE_SLEEP_CHANCE = 0.25; 
+        const SHARKIE_SLEEP_CHECK_INTERVAL_MS = 60 * 60 * 1000; 
         const sharkieContainer = document.getElementById("sharkie-container");
         const sharkieImage = document.getElementById("sharkie-image");
-
-        // --- Resources (GIF/Sound) ---
-        let playSoundIndex = 0;
         const audioSources = [
             './sharkleSound1.aac', './sharkleSound2.aac', './sharkleSound3.aac', 
             './sharkleSound4.aac', './sharkleSound5.aac', './sharkleSound6.aac', 
             './sharkleSound7.aac', './sharkleSound8.aac'
         ];
-        
-        const GIF_PATHS = {
-            IDLE_NORMAL: './animation-idle.gif',
-            IDLE_INVERT: './animation-idle2.gif',
-            CLICK_NORMAL: './animation-click.gif',
-            CLICK_INVERT: './animation-click2.gif',
-            DRAG_NORMAL: './drag.gif',
-            DRAG_INVERT: './drag2.gif'
+        const WEBP_PATHS = {
+            IDLE_NORMAL: './animation-idle.webp',
+            IDLE_INVERT: './animation-idle2.webp',
+            CLICK_NORMAL: './animation-click.webp',
+            CLICK_INVERT: './animation-click2.webp',
+            DRAG_NORMAL: './drag.webp',
+            DRAG_INVERT: './drag2.webp',
+            SLEEP_NORMAL: './eepy.webp',
+            SLEEP_INVERT: './eepy2.webp'
         };
+        
+        //OTHER VARS
+        let isInverted = false; 
+        let isDraggingMode = false; 
+        let isMouseDown = false; 
+        let mouseDownTime = 0;
+        let startGlobalX = 0;
+        let startGlobalY = 0;
+        let windowStartX = 0;
+        let windowStartY = 0;
+        let mouseButtonDown = 0; 
+        let playSoundIndex = 0;
+        let isSleeping = false; 
+        let sleepIntervalId = null; 
 
-        // --- Path Utility Functions ---
-
-        function getGifPath(action) {
+        //ANIMATE FUNCTIONS
+        function getWebpPath(action) {
             const key = `${action}_${isInverted ? 'INVERT' : 'NORMAL'}`;
-            return GIF_PATHS[key] || GIF_PATHS.IDLE_NORMAL;
+            return WEBP_PATHS[key] || WEBP_PATHS.IDLE_NORMAL;
         }
-
-        // --- Animation / Sound Logic ---
 
         function startIdleAnimation() {
             clearTimeout(window._clickTimeoutId);
-            if (sharkieImage.src !== getGifPath('IDLE')) {
-                sharkieImage.src = getGifPath('IDLE');
+            isSleeping = false;
+            sharkieContainer.style.cursor = 'grab';
+            if (sharkieImage.src !== getWebpPath('IDLE')) {
+                sharkieImage.src = getWebpPath('IDLE');
             }
         }
 
         function startDragAnimation() {
             clearTimeout(window._clickTimeoutId);
-            sharkieImage.src = getGifPath('DRAG');
+            isSleeping = false;
+            sharkieImage.src = getWebpPath('DRAG');
             sharkieContainer.style.cursor = 'grabbing';
         }
 
+        function startSleepAnimation() {
+            if (isDraggingMode || isSleeping || window._clickTimeoutId) return; 
+            isSleeping = true;
+            sharkieImage.src = getWebpPath('SLEEP');
+            sharkieContainer.style.cursor = 'default';
+        }
+
+        //CLICK FUNCTION
         function playClickAnimationAndSound() {
             clearTimeout(window._clickTimeoutId);
-            sharkieImage.src = getGifPath('CLICK');
-            
+            isSleeping = false;
+            sharkieImage.src = getWebpPath('CLICK');
             const audioSrc = audioSources[playSoundIndex];
             const audio = new Audio(audioSrc);
             playSoundIndex = (playSoundIndex + 1) % audioSources.length;
@@ -120,83 +110,97 @@
             
             window._clickTimeoutId = setTimeout(startIdleAnimation, 1600);
         }
+        
+        // SLEEP INTERVAL LOGIC
+        function checkSleepChance() {
+            if (isDraggingMode || isSleeping || window._clickTimeoutId) {
+                return;
+            }
 
-        // --- Mouse Handling ---
+            if (Math.random() < SHARKIE_SLEEP_CHANCE) {
+                startSleepAnimation();
+            }
+        }
 
-        // FIX: Global mouseup handler to reset state even if released outside the window
+        function initSleepCheck() {
+            if (sleepIntervalId) {
+                clearInterval(sleepIntervalId);
+            }
+            sleepIntervalId = setInterval(checkSleepChance, SHARKIE_SLEEP_CHECK_INTERVAL_MS);
+        }
+        
+        initSleepCheck();
+
+        //END OF DRAG...
         const globalMouseUpHandler = (e) => {
-            // Check if the button being released is the one that started the drag/click
             if (!isMouseDown || e.button !== mouseButtonDown) return; 
-            
             const elapsedMs = Date.now() - mouseDownTime;
             const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
-
             document.body.releaseCapture && document.body.releaseCapture();
-            
             const wasDragging = isDraggingMode;
             isMouseDown = false;
             isDraggingMode = false;
-            mouseButtonDown = 0; // Reset tracked button
-
+            mouseButtonDown = 0;
+            
             if (wasDragging) {
-                // Drag just ended
                 sharkieContainer.style.cursor = 'grab';
                 startIdleAnimation();
             } 
             
-            // Left Click check (e.button 0 for mouseup when mousedown was also 0)
-            if (!wasDragging && elapsedMs < IS_DRAG_THRESHOLD_MS && distMoved < IS_CLICK_THRESHOLD_DIST && e.button === 0) {
+            // This is the click action handler (e.button === 0 is left click)
+            if (elapsedMs < IS_DRAG_THRESHOLD_MS && distMoved < IS_CLICK_THRESHOLD_DIST && e.button === 0) {
                 playClickAnimationAndSound();
             }
         };
-
         document.addEventListener('mouseup', globalMouseUpHandler);
-
 
         sharkieContainer.addEventListener('mousedown', (e) => {
             isMouseDown = true;
-            mouseButtonDown = e.button; // Track which button was pressed
+            mouseButtonDown = e.button; 
             mouseDownTime = Date.now();
             startGlobalX = e.screenX;
             startGlobalY = e.screenY;
-            
-            // Right-click: Send coordinates to main process for menu popup
+
+            // An immediate mousedown *while* sleeping should wake the pal up before drag/click finishes.
+            if (isSleeping && e.button === 0) {
+                startIdleAnimation();
+            }
+        
             if (e.button === 2) { 
                 ipcRenderer.send('mouse-down', { button: e.button, x: e.clientX, y: e.clientY });
             }
-
+            
             document.body.setCapture && document.body.setCapture(); 
         });
 
-        // Prevent the browser's default context menu
+        //ensure menu shows.
         sharkieContainer.addEventListener('contextmenu', (e) => {
             e.preventDefault(); 
         });
 
-
+        //Dragging
         sharkieContainer.addEventListener('mousemove', (e) => {
-            // Only proceed if the button that started the drag (mouseButtonDown) is still pressed
             if (!isMouseDown || e.buttons === 0 || (e.buttons & (1 << mouseButtonDown)) === 0) return;
-
-            // 1. Check if we should switch to drag mode
+            if (mouseButtonDown !== 0) return; 
+            if (isSleeping) {
+                const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
+                if (distMoved > 5) { 
+                    startIdleAnimation(); 
+                }
+                return;
+            }
             if (!isDraggingMode) {
-                // Only left-clicks (button 0) should trigger drag
-                if (mouseButtonDown !== 0) return; 
-
                 const elapsedMs = Date.now() - mouseDownTime;
                 const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
 
                 if (elapsedMs >= IS_DRAG_THRESHOLD_MS || distMoved > IS_CLICK_THRESHOLD_DIST) {
                     isDraggingMode = true;
                     startDragAnimation();
-                    // Synchronously get the current position right before dragging starts
                     const pos = ipcRenderer.sendSync('get-window-position'); 
                     windowStartX = pos.x;
                     windowStartY = pos.y;
                 }
-            }
-
-            // 2. Perform the drag
+            } 
             if (isDraggingMode) {
                 const deltaX = e.screenX - startGlobalX;
                 const deltaY = e.screenY - startGlobalY;
@@ -208,8 +212,7 @@
             }
         });
 
-        // --- IPC Event Listeners (Incoming from main.js) ---
-
+        //MISC
         ipcRenderer.on('load-settings', (event, settings) => {
             isInverted = settings.inverted;
             sharkieImage.classList.toggle('inverted', isInverted);
@@ -221,14 +224,16 @@
             sharkieImage.classList.toggle('inverted', isInverted);
             
             if (isDraggingMode) {
-                sharkieImage.src = getGifPath('DRAG');
+                sharkieImage.src = getWebpPath('DRAG');
+            } else if (isSleeping) {
+                sharkieImage.src = getWebpPath('SLEEP');
             } else {
                 startIdleAnimation();
             }
         });
 
         ipcRenderer.on('window-resize', (event, newSize) => {
-            if (!isDraggingMode && !window._clickTimeoutId) {
+            if (!isDraggingMode && !isSleeping && !window._clickTimeoutId) {
                 startIdleAnimation();
             }
         });

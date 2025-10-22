@@ -1,118 +1,118 @@
 const { app, BrowserWindow, Menu, MenuItem, ipcMain, screen } = require('electron');
 const windowStateKeeper = require('electron-window-state');
 const AutoLaunch = require('auto-launch');
-
+const Store = require('electron-store');
 let win = null;
 
-// --- Autolaunch Setup ---
-let autolaunchConfig = {
-    name: "SharklePal"
-}
-if(process.env.APPIMAGE){
-    autolaunchConfig = {...autolaunchConfig, path:process.env.APPIMAGE}
+// Store information
+const store = new Store({
+    defaults: {
+        invertedState: false,
+        windowSize: 240,
+        alwaysOnTopState: false 
+    }
+});
+let currentWindowSize = store.get('windowSize', 240);
+let isInvertedState = store.get('invertedState');
+let isAlwaysOnTop = store.get('alwaysOnTopState', false);
+
+
+// Auto launch information
+let autolaunchConfig = { name: "SharklePal" };
+if (process.env.APPIMAGE) {
+    autolaunchConfig.path = process.env.APPIMAGE;
 }
 const autoLauncher = new AutoLaunch(autolaunchConfig);
-
 const disableAutolaunchLabel = "I'm awful and I don't want to see Sharkie again";
 const enableAutolaunchLabel = "I really love Sharkie and I want it on my PC every time it starts";
 
-// --- Global State (No persistence) ---
-let currentWindowSize = 240;
-let isInvertedState = false;
-
+//decreases overhead
 app.disableHardwareAcceleration();
 
-// --- Window Creation & State Management ---
-
-function createWindow () {
+//creates window
+function createWindow() {
     const primaryDisplay = screen.getPrimaryDisplay();
-    // Use workAreaSize to exclude taskbar/dock from the calculation
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-    
-    let windowSize = currentWindowSize; 
-    
-    // Calculate Bottom-Right Position (fixed size is 240x240 for calculation)
-    const initialX = screenWidth - windowSize;
-    const initialY = screenHeight - windowSize;
-    
-    // Use windowStateKeeper to manage persistence of position and size after the first launch.
-    let mainWindowState = windowStateKeeper({
-        defaultWidth: windowSize,
-        defaultHeight: windowSize,
+    const initialX = screenWidth - currentWindowSize;
+    const initialY = screenHeight - currentWindowSize;
+    const mainWindowState = windowStateKeeper({
+        defaultWidth: currentWindowSize,
+        defaultHeight: currentWindowSize,
         defaultX: initialX,
         defaultY: initialY
     });
-    
-    // Use persisted state if available, otherwise use the calculated bottom-right position.
-    let finalX = mainWindowState.x !== undefined ? mainWindowState.x : initialX;
-    let finalY = mainWindowState.y !== undefined ? mainWindowState.y : initialY;
-    windowSize = mainWindowState.width;
-
-    // FIX 1: Update the global state variable with the size loaded from persistence.
-    currentWindowSize = windowSize; 
-
+    const finalX = mainWindowState.x !== undefined ? mainWindowState.x : initialX;
+    const finalY = mainWindowState.y !== undefined ? mainWindowState.y : initialY;
     win = new BrowserWindow({
-        width: windowSize,
-        height: windowSize,
-        x: finalX, 
-        y: finalY, 
+        width: currentWindowSize,
+        height: currentWindowSize,
+        x: finalX,
+        y: finalY,
         frame: false,
         resizable: false,
         transparent: true,
         webPreferences: {
-            nodeIntegration: true, 
+            nodeIntegration: true,
             contextIsolation: false
         }
     });
-
     win.loadFile('index.html');
+    mainWindowState.manage(win);
+    resizeWindow(currentWindowSize);
     win.setMenu(null);
     win.setSkipTaskbar(true);
     win.isMenuBarVisible(false);
-
-    // Initial settings sync after load
+    win.setAlwaysOnTop(isAlwaysOnTop, 'normal');
     win.webContents.on('did-finish-load', () => {
         win.webContents.send('load-settings', {
             inverted: isInvertedState,
-            size: win.getSize()[0]
+            size: currentWindowSize
         });
+        updateFullMenu();
     });
-
-    mainWindowState.manage(win);
 }
-
-// --- App Lifecycle ---
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-        app.quit()
+        app.quit();
     }
-})
-
-app.on('ready', function () {
-    setTimeout(createWindow, 300);
 });
 
-// --- Menu Functions ---
+app.on('ready', () => {
+    createWindow();
+});
 
 function resizeWindow(size) {
     if (win) {
         currentWindowSize = size;
-        win.setSize(size, size);
+        store.set('windowSize', size);
+        const bounds = win.getBounds();
+        win.setBounds({
+            x: bounds.x,
+            y: bounds.y,
+            width: size,
+            height: size
+        });
         win.webContents.send('window-resize', size);
     }
 }
 
-function updateAutolaunchMenuOptionTo(isEnabled){
-    let updatedMenu = new Menu();
-    populateMenuWithEverithingButTheAutolaunch(updatedMenu);
-    addAutolaunchMenuOption(isEnabled);
-    // Menu object assignment is tricky; reassigning to a local let 
-    // named `menu` is the only way to update the variable used by ipcMain.
-    menu = updatedMenu; 
-}
 
-function populateMenuWithEverithingButTheAutolaunch(menu){
+
+// MENU
+let menu = new Menu();
+function updateFullMenu() {
+    const updatedMenu = new Menu();
+    populateMenuWithEverythingButTheAutolaunch(updatedMenu);
+    addAlwaysOnTopMenuOption(updatedMenu);
+    addAutolaunchMenuOptionCheckingSystem(updatedMenu);
+    Menu.setApplicationMenu(updatedMenu);
+    menu = updatedMenu;
+}
+function updateAutolaunchMenuOptionTo(isEnabled) {
+    updateFullMenu();
+}
+function populateMenuWithEverythingButTheAutolaunch(menu) {
     menu.append(new MenuItem({ label: 'Big Sharkle', click: () => resizeWindow(240) }));
     menu.append(new MenuItem({ label: 'Medium Sharkle', click: () => resizeWindow(140) }));
     menu.append(new MenuItem({ label: 'Small Sharkle', click: () => resizeWindow(80) }));
@@ -121,7 +121,8 @@ function populateMenuWithEverithingButTheAutolaunch(menu){
         label: 'Invert Sharkle',
         click: () => {
             isInvertedState = !isInvertedState;
-            if (win) { 
+            store.set('invertedState', isInvertedState);
+            if (win) {
                 win.webContents.send('invert-sharkie', isInvertedState);
             }
         }
@@ -130,13 +131,29 @@ function populateMenuWithEverithingButTheAutolaunch(menu){
     menu.append(new MenuItem({ label: 'Kill Sharkle :(', click: () => app.quit() }));
 }
 
-function addAutolaunchMenuOptionCheckingSystem(){
-    autoLauncher.isEnabled().then((isEnabled)=>{
-        addAutolaunchMenuOption(isEnabled);
+function addAlwaysOnTopMenuOption(menu) {
+    const label = isAlwaysOnTop ? 'Unpin Sharkle' : 'Keep Sharkle on Top';
+    menu.append(new MenuItem({
+        label: label,
+        click: () => {
+            isAlwaysOnTop = !isAlwaysOnTop;
+            store.set('alwaysOnTopState', isAlwaysOnTop);
+            if (win) {
+                win.setAlwaysOnTop(isAlwaysOnTop, 'normal');
+            }
+            updateFullMenu();
+        }
+    }));
+    menu.append(new MenuItem({ type: 'separator' }));
+}
+
+function addAutolaunchMenuOptionCheckingSystem(menuToAppendTo) {
+    autoLauncher.isEnabled().then((isEnabled) => {
+        addAutolaunchMenuOption(isEnabled, menuToAppendTo);
     });
 }
 
-function addAutolaunchMenuOption(isEnabled){
+function addAutolaunchMenuOption(isEnabled, menuToAppendTo) {
     const autolaunchItem = new MenuItem({
         label: isEnabled ? disableAutolaunchLabel : enableAutolaunchLabel,
         role: 'autolaunch',
@@ -149,29 +166,22 @@ function addAutolaunchMenuOption(isEnabled){
             updateAutolaunchMenuOptionTo(!isEnabled);
         }
     });
-    menu.append(autolaunchItem);
+    menuToAppendTo.append(autolaunchItem);
 }
 
-// Initialize the menu structure
-let menu = new Menu();
-populateMenuWithEverithingButTheAutolaunch(menu);
-addAutolaunchMenuOptionCheckingSystem();
+populateMenuWithEverythingButTheAutolaunch(menu);
+Menu.setApplicationMenu(menu);
 
-
-// --- IPC Communication ---
-
-// Handles right-click menu pop-up
 ipcMain.on('mouse-down', (event, startCoords) => {
-    if (startCoords.button === 2) { 
+    if (startCoords.button === 2) {
         menu.popup({
             window: win,
-            x: startCoords.x, // clientX
-            y: startCoords.y  // clientY
+            x: startCoords.x,
+            y: startCoords.y
         });
     }
 });
 
-// SYNCHRONOUS: Gets window position for drag start
 ipcMain.on('get-window-position', (event) => {
     if (win) {
         const [x, y] = win.getPosition();
@@ -181,16 +191,13 @@ ipcMain.on('get-window-position', (event) => {
     }
 });
 
-// ASYNCHRONOUS: Moves the window during drag
 ipcMain.on('set-window-position', (event, newPos) => {
     if (win) {
-        // FIX 2: Use currentWindowSize for dimensions during drag 
-        // to prevent unintended resizing/growth.
-        win.setBounds({ 
-            x: newPos.x, 
-            y: newPos.y, 
-            width: currentWindowSize, 
-            height: currentWindowSize 
+        win.setBounds({
+            x: newPos.x,
+            y: newPos.y,
+            width: currentWindowSize,
+            height: currentWindowSize
         });
     }
 });

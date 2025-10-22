@@ -1,6 +1,6 @@
 {
   "name": "sharkle-pal",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Html visualizer",
   "main": "main.js",
   "scripts": {
@@ -8,7 +8,8 @@
     "dist": "electron-builder -w"
   },
   "build": {
-    "appId": "sharkle-pal"
+    "appId": "sharkle-pal",
+    "icon": "icon.png" 
   },
   "repository": {
     "type": "git",
@@ -25,7 +26,8 @@
     "electron-builder": "^22.14.13"
   },
   "dependencies": {
-    "auto-launch": "^5.0.5",
+    "auto-launch": "^5.0.6",
+    "electron-store": "^8.2.0",
     "electron-window-state": "^5.0.3"
   }
 }
