@@ -23,3 +23,4 @@ The sharkle will appear in the tasks list (the one from alt + tab) -anyone who w
 
 Notes from Collie: Linux download currently not existent for this version, sadly. I'll add one soon. This whole version is just fine tuning/tweaks of the original app by Ignacio! 
 
+current todo: fix click on transparent areas, add sleeping sprite, Add strolling, Fix saving of color option (on reboot), Add speed up on middle click
