@@ -2,12 +2,237 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Hello World!</title>
-    <link rel="stylesheet" href="./sharkieCss.css">
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+    <title>Sharkle Pal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            background-color: transparent; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .sharkie-container {
+            width: 100%; 
+            height: 100%; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+            user-select: none;
+            /* FIX: Disable native drag. We handle dragging entirely in JS now. */
+            -webkit-app-region: no-drag; 
+        }
+
+        .sharkie-image {
+            max-width: 100%;
+            height: auto;
+            pointer-events: none;
+            transition: filter 0.3s ease;
+        }
+
+        .inverted {
+            filter: hue-rotate(180deg) saturate(1.5);
+        }
+    </style>
 </head>
 <body>
-    <img id="sharkie-idle" class="sharkie" src="animation-idle.gif">
+    <div id="sharkie-container" class="sharkie-container">
+        <img id="sharkie-image" class="sharkie-image" src="./animation-idle.gif" alt="Sharkie Character">
+    </div>
+    
+    <script>
+        const ipcRenderer = require('electron').ipcRenderer;
+
+        // --- Constants and State ---
+        const IS_DRAG_THRESHOLD_MS = 250;
+        const IS_CLICK_THRESHOLD_DIST = 50; 
+
+        let isInverted = false; 
+        let isDraggingMode = false; 
+        let isMouseDown = false; // Tracks if ANY mouse button is down
+        let mouseDownTime = 0;
+        let startGlobalX = 0;
+        let startGlobalY = 0;
+        let windowStartX = 0;
+        let windowStartY = 0;
+        let mouseButtonDown = 0; // Tracks the button pressed down
+
+        const sharkieContainer = document.getElementById("sharkie-container");
+        const sharkieImage = document.getElementById("sharkie-image");
+
+        // --- Resources (GIF/Sound) ---
+        let playSoundIndex = 0;
+        const audioSources = [
+            './sharkleSound1.aac', './sharkleSound2.aac', './sharkleSound3.aac', 
+            './sharkleSound4.aac', './sharkleSound5.aac', './sharkleSound6.aac', 
+            './sharkleSound7.aac', './sharkleSound8.aac'
+        ];
+        
+        const GIF_PATHS = {
+            IDLE_NORMAL: './animation-idle.gif',
+            IDLE_INVERT: './animation-idle2.gif',
+            CLICK_NORMAL: './animation-click.gif',
+            CLICK_INVERT: './animation-click2.gif',
+            DRAG_NORMAL: './drag.gif',
+            DRAG_INVERT: './drag2.gif'
+        };
+
+        // --- Path Utility Functions ---
+
+        function getGifPath(action) {
+            const key = `${action}_${isInverted ? 'INVERT' : 'NORMAL'}`;
+            return GIF_PATHS[key] || GIF_PATHS.IDLE_NORMAL;
+        }
+
+        // --- Animation / Sound Logic ---
+
+        function startIdleAnimation() {
+            clearTimeout(window._clickTimeoutId);
+            if (sharkieImage.src !== getGifPath('IDLE')) {
+                sharkieImage.src = getGifPath('IDLE');
+            }
+        }
+
+        function startDragAnimation() {
+            clearTimeout(window._clickTimeoutId);
+            sharkieImage.src = getGifPath('DRAG');
+            sharkieContainer.style.cursor = 'grabbing';
+        }
+
+        function playClickAnimationAndSound() {
+            clearTimeout(window._clickTimeoutId);
+            sharkieImage.src = getGifPath('CLICK');
+            
+            const audioSrc = audioSources[playSoundIndex];
+            const audio = new Audio(audioSrc);
+            playSoundIndex = (playSoundIndex + 1) % audioSources.length;
+            audio.play().catch(error => {
+                console.warn("Audio playback failed (requires user interaction first):", error);
+            });
+            
+            window._clickTimeoutId = setTimeout(startIdleAnimation, 1600);
+        }
+
+        // --- Mouse Handling ---
+
+        // FIX: Global mouseup handler to reset state even if released outside the window
+        const globalMouseUpHandler = (e) => {
+            // Check if the button being released is the one that started the drag/click
+            if (!isMouseDown || e.button !== mouseButtonDown) return; 
+            
+            const elapsedMs = Date.now() - mouseDownTime;
+            const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
+
+            document.body.releaseCapture && document.body.releaseCapture();
+            
+            const wasDragging = isDraggingMode;
+            isMouseDown = false;
+            isDraggingMode = false;
+            mouseButtonDown = 0; // Reset tracked button
+
+            if (wasDragging) {
+                // Drag just ended
+                sharkieContainer.style.cursor = 'grab';
+                startIdleAnimation();
+            } 
+            
+            // Left Click check (e.button 0 for mouseup when mousedown was also 0)
+            if (!wasDragging && elapsedMs < IS_DRAG_THRESHOLD_MS && distMoved < IS_CLICK_THRESHOLD_DIST && e.button === 0) {
+                playClickAnimationAndSound();
+            }
+        };
+
+        document.addEventListener('mouseup', globalMouseUpHandler);
+
+
+        sharkieContainer.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            mouseButtonDown = e.button; // Track which button was pressed
+            mouseDownTime = Date.now();
+            startGlobalX = e.screenX;
+            startGlobalY = e.screenY;
+            
+            // Right-click: Send coordinates to main process for menu popup
+            if (e.button === 2) { 
+                ipcRenderer.send('mouse-down', { button: e.button, x: e.clientX, y: e.clientY });
+            }
+
+            document.body.setCapture && document.body.setCapture(); 
+        });
+
+        // Prevent the browser's default context menu
+        sharkieContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault(); 
+        });
+
+
+        sharkieContainer.addEventListener('mousemove', (e) => {
+            // Only proceed if the button that started the drag (mouseButtonDown) is still pressed
+            if (!isMouseDown || e.buttons === 0 || (e.buttons & (1 << mouseButtonDown)) === 0) return;
+
+            // 1. Check if we should switch to drag mode
+            if (!isDraggingMode) {
+                // Only left-clicks (button 0) should trigger drag
+                if (mouseButtonDown !== 0) return; 
+
+                const elapsedMs = Date.now() - mouseDownTime;
+                const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
+
+                if (elapsedMs >= IS_DRAG_THRESHOLD_MS || distMoved > IS_CLICK_THRESHOLD_DIST) {
+                    isDraggingMode = true;
+                    startDragAnimation();
+                    // Synchronously get the current position right before dragging starts
+                    const pos = ipcRenderer.sendSync('get-window-position'); 
+                    windowStartX = pos.x;
+                    windowStartY = pos.y;
+                }
+            }
+
+            // 2. Perform the drag
+            if (isDraggingMode) {
+                const deltaX = e.screenX - startGlobalX;
+                const deltaY = e.screenY - startGlobalY;
+                
+                ipcRenderer.send('set-window-position', { 
+                    x: windowStartX + deltaX,
+                    y: windowStartY + deltaY
+                });
+            }
+        });
+
+        // --- IPC Event Listeners (Incoming from main.js) ---
+
+        ipcRenderer.on('load-settings', (event, settings) => {
+            isInverted = settings.inverted;
+            sharkieImage.classList.toggle('inverted', isInverted);
+            startIdleAnimation();
+        });
+
+        ipcRenderer.on('invert-sharkie', (event, newInvertedState) => {
+            isInverted = newInvertedState;
+            sharkieImage.classList.toggle('inverted', isInverted);
+            
+            if (isDraggingMode) {
+                sharkieImage.src = getGifPath('DRAG');
+            } else {
+                startIdleAnimation();
+            }
+        });
+
+        ipcRenderer.on('window-resize', (event, newSize) => {
+            if (!isDraggingMode && !window._clickTimeoutId) {
+                startIdleAnimation();
+            }
+        });
+        
+    </script>
 </body>
 </html>
-<script src="sharkie.js"></script>
