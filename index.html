@@ -19,7 +19,7 @@
             align-items: center; user-select: none;
             -webkit-app-region: no-drag; 
         }
-        .sharkie-image { max-width: 100%; height: auto; pointer-events: none; transition: filter 0.3s ease;        }
+        .sharkie-image { max-width: 100%; height: auto; pointer-events: none; transition: filter 0.3s ease; }
         .inverted { filter: hue-rotate(180deg) saturate(1.5);}
     </style>
 </head>
@@ -28,13 +28,12 @@
         <img id="sharkie-image" class="sharkie-image" src="./animation-idle.webp" alt="Sharkie Character">
     </div>
 
-        <script>
-        //CONSTANT VARIABLES
+    <script>
         const ipcRenderer = require('electron').ipcRenderer;
         const IS_DRAG_THRESHOLD_MS = 150;
         const IS_CLICK_THRESHOLD_DIST = 50; 
-        const SHARKIE_SLEEP_CHANCE = 0.25; 
-        const SHARKIE_SLEEP_CHECK_INTERVAL_MS = 60 * 60 * 1000; 
+        const SHARKIE_SLEEP_CHANCE = .25; 
+        const SHARKIE_SLEEP_CHECK_INTERVAL_MS = 10 * 60 * 1000; 
         const sharkieContainer = document.getElementById("sharkie-container");
         const sharkieImage = document.getElementById("sharkie-image");
         const audioSources = [
@@ -53,7 +52,6 @@
             SLEEP_INVERT: './eepy2.webp'
         };
         
-        //OTHER VARS
         let isInverted = false; 
         let isDraggingMode = false; 
         let isMouseDown = false; 
@@ -67,7 +65,6 @@
         let isSleeping = false; 
         let sleepIntervalId = null; 
 
-        //ANIMATE FUNCTIONS
         function getWebpPath(action) {
             const key = `${action}_${isInverted ? 'INVERT' : 'NORMAL'}`;
             return WEBP_PATHS[key] || WEBP_PATHS.IDLE_NORMAL;
@@ -75,6 +72,7 @@
 
         function startIdleAnimation() {
             clearTimeout(window._clickTimeoutId);
+            window._clickTimeoutId = null;
             isSleeping = false;
             sharkieContainer.style.cursor = 'grab';
             if (sharkieImage.src !== getWebpPath('IDLE')) {
@@ -96,7 +94,6 @@
             sharkieContainer.style.cursor = 'default';
         }
 
-        //CLICK FUNCTION
         function playClickAnimationAndSound() {
             clearTimeout(window._clickTimeoutId);
             isSleeping = false;
@@ -105,13 +102,12 @@
             const audio = new Audio(audioSrc);
             playSoundIndex = (playSoundIndex + 1) % audioSources.length;
             audio.play().catch(error => {
-                console.warn("Audio playback failed (requires user interaction first):", error);
+                console.warn("Audio playback failed:", error);
             });
             
             window._clickTimeoutId = setTimeout(startIdleAnimation, 1600);
         }
         
-        // SLEEP INTERVAL LOGIC
         function checkSleepChance() {
             if (isDraggingMode || isSleeping || window._clickTimeoutId) {
                 return;
@@ -131,7 +127,6 @@
         
         initSleepCheck();
 
-        //END OF DRAG...
         const globalMouseUpHandler = (e) => {
             if (!isMouseDown || e.button !== mouseButtonDown) return; 
             const elapsedMs = Date.now() - mouseDownTime;
@@ -147,7 +142,6 @@
                 startIdleAnimation();
             } 
             
-            // This is the click action handler (e.button === 0 is left click)
             if (elapsedMs < IS_DRAG_THRESHOLD_MS && distMoved < IS_CLICK_THRESHOLD_DIST && e.button === 0) {
                 playClickAnimationAndSound();
             }
@@ -161,24 +155,24 @@
             startGlobalX = e.screenX;
             startGlobalY = e.screenY;
 
-            // An immediate mousedown *while* sleeping should wake the pal up before drag/click finishes.
             if (isSleeping && e.button === 0) {
                 startIdleAnimation();
             }
         
             if (e.button === 2) { 
+                if (isSleeping) {
+                    startIdleAnimation(); 
+                }
                 ipcRenderer.send('mouse-down', { button: e.button, x: e.clientX, y: e.clientY });
             }
             
             document.body.setCapture && document.body.setCapture(); 
         });
 
-        //ensure menu shows.
         sharkieContainer.addEventListener('contextmenu', (e) => {
             e.preventDefault(); 
         });
 
-        //Dragging
         sharkieContainer.addEventListener('mousemove', (e) => {
             if (!isMouseDown || e.buttons === 0 || (e.buttons & (1 << mouseButtonDown)) === 0) return;
             if (mouseButtonDown !== 0) return; 
@@ -212,7 +206,6 @@
             }
         });
 
-        //MISC
         ipcRenderer.on('load-settings', (event, settings) => {
             isInverted = settings.inverted;
             sharkieImage.classList.toggle('inverted', isInverted);
