@@ -3,21 +3,23 @@ const windowStateKeeper = require('electron-window-state');
 const AutoLaunch = require('auto-launch');
 const Store = require('electron-store');
 let win = null;
+const SLEEPY_INTERVAL_MS = 10 * 60 * 1000; 
+const AWAKE_INTERVAL_MS = 30 * 60 * 1000; 
 
 // Store information
 const store = new Store({
     defaults: {
         invertedState: false,
         windowSize: 240,
-        alwaysOnTopState: false 
+        alwaysOnTopState: false,
+        sleepy: true 
     }
 });
 let currentWindowSize = store.get('windowSize', 240);
 let isInvertedState = store.get('invertedState');
 let isAlwaysOnTop = store.get('alwaysOnTopState', false);
+let sleepy = store.get('sleepy', true);
 
-
-// Auto launch information
 let autolaunchConfig = { name: "SharklePal" };
 if (process.env.APPIMAGE) {
     autolaunchConfig.path = process.env.APPIMAGE;
@@ -26,10 +28,23 @@ const autoLauncher = new AutoLaunch(autolaunchConfig);
 const disableAutolaunchLabel = "I'm awful and I don't want to see Sharkie again";
 const enableAutolaunchLabel = "I really love Sharkie and I want it on my PC every time it starts";
 
-//decreases overhead
 app.disableHardwareAcceleration();
 
-//creates window
+function getSleepCheckInterval() {
+    return sleepy ? SLEEPY_INTERVAL_MS : AWAKE_INTERVAL_MS;
+}
+
+function sendSettingsToRenderer() {
+    if (win) {
+        win.webContents.send('load-settings', {
+            inverted: isInvertedState,
+            size: currentWindowSize,
+            sleepCheckInterval: getSleepCheckInterval() // New: Send the calculated interval
+        });
+    }
+}
+
+// creates window
 function createWindow() {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
@@ -64,10 +79,7 @@ function createWindow() {
     win.isMenuBarVisible(false);
     win.setAlwaysOnTop(isAlwaysOnTop, 'normal');
     win.webContents.on('did-finish-load', () => {
-        win.webContents.send('load-settings', {
-            inverted: isInvertedState,
-            size: currentWindowSize
-        });
+        sendSettingsToRenderer(); 
         updateFullMenu();
     });
 }
@@ -97,14 +109,13 @@ function resizeWindow(size) {
     }
 }
 
-
-
 // MENU
 let menu = new Menu();
 function updateFullMenu() {
     const updatedMenu = new Menu();
     populateMenuWithEverythingButTheAutolaunch(updatedMenu);
     addAlwaysOnTopMenuOption(updatedMenu);
+    addSleepy(updatedMenu); 
     addAutolaunchMenuOptionCheckingSystem(updatedMenu);
     Menu.setApplicationMenu(updatedMenu);
     menu = updatedMenu;
@@ -113,9 +124,10 @@ function updateAutolaunchMenuOptionTo(isEnabled) {
     updateFullMenu();
 }
 function populateMenuWithEverythingButTheAutolaunch(menu) {
-    menu.append(new MenuItem({ label: 'Big Sharkle', click: () => resizeWindow(240) }));
-    menu.append(new MenuItem({ label: 'Medium Sharkle', click: () => resizeWindow(140) }));
     menu.append(new MenuItem({ label: 'Small Sharkle', click: () => resizeWindow(80) }));
+    menu.append(new MenuItem({ label: 'Medium Sharkle', click: () => resizeWindow(140) }));
+    menu.append(new MenuItem({ label: 'Big Sharkle', click: () => resizeWindow(240) }));
+    menu.append(new MenuItem({ label: 'Jumbo Sharkle', click: () => resizeWindow(480) }));
     menu.append(new MenuItem({ type: 'separator' }));
     menu.append(new MenuItem({
         label: 'Invert Sharkle',
@@ -128,7 +140,6 @@ function populateMenuWithEverythingButTheAutolaunch(menu) {
         }
     }));
     menu.append(new MenuItem({ type: 'separator' }));
-    menu.append(new MenuItem({ label: 'Kill Sharkle :(', click: () => app.quit() }));
 }
 
 function addAlwaysOnTopMenuOption(menu) {
@@ -147,9 +158,25 @@ function addAlwaysOnTopMenuOption(menu) {
     menu.append(new MenuItem({ type: 'separator' }));
 }
 
+function addSleepy(menu) {
+    const label = sleepy ? 'Gib Coffee' : 'Sooo eepy';
+    menu.append(new MenuItem({
+        label: label,
+        click: () => {
+            sleepy = !sleepy;
+            store.set('sleepy', sleepy);
+            sendSettingsToRenderer(); 
+            updateFullMenu();
+        }
+    }));
+    menu.append(new MenuItem({ type: 'separator' }));
+}
+
 function addAutolaunchMenuOptionCheckingSystem(menuToAppendTo) {
     autoLauncher.isEnabled().then((isEnabled) => {
         addAutolaunchMenuOption(isEnabled, menuToAppendTo);
+        menuToAppendTo.append(new MenuItem({ type: 'separator' }));
+        menuToAppendTo.append(new MenuItem({ label: 'Kill Sharkle :(', click: () => app.quit() }));
     });
 }
 

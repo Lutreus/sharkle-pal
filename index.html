@@ -33,7 +33,7 @@
         const IS_DRAG_THRESHOLD_MS = 150;
         const IS_CLICK_THRESHOLD_DIST = 50; 
         const SHARKIE_SLEEP_CHANCE = .25; 
-        const SHARKIE_SLEEP_CHECK_INTERVAL_MS = 10 * 60 * 1000; 
+        let sleepCheckIntervalMs = 10 * 1000; 
         const sharkieContainer = document.getElementById("sharkie-container");
         const sharkieImage = document.getElementById("sharkie-image");
         const audioSources = [
@@ -51,7 +51,6 @@
             SLEEP_NORMAL: './eepy.webp',
             SLEEP_INVERT: './eepy2.webp'
         };
-        
         let isInverted = false; 
         let isDraggingMode = false; 
         let isMouseDown = false; 
@@ -64,7 +63,6 @@
         let playSoundIndex = 0;
         let isSleeping = false; 
         let sleepIntervalId = null; 
-
         function getWebpPath(action) {
             const key = `${action}_${isInverted ? 'INVERT' : 'NORMAL'}`;
             return WEBP_PATHS[key] || WEBP_PATHS.IDLE_NORMAL;
@@ -112,7 +110,6 @@
             if (isDraggingMode || isSleeping || window._clickTimeoutId) {
                 return;
             }
-
             if (Math.random() < SHARKIE_SLEEP_CHANCE) {
                 startSleepAnimation();
             }
@@ -122,9 +119,8 @@
             if (sleepIntervalId) {
                 clearInterval(sleepIntervalId);
             }
-            sleepIntervalId = setInterval(checkSleepChance, SHARKIE_SLEEP_CHECK_INTERVAL_MS);
+            sleepIntervalId = setInterval(checkSleepChance, sleepCheckIntervalMs);
         }
-        
         initSleepCheck();
 
         const globalMouseUpHandler = (e) => {
@@ -209,6 +205,11 @@
         ipcRenderer.on('load-settings', (event, settings) => {
             isInverted = settings.inverted;
             sharkieImage.classList.toggle('inverted', isInverted);
+            if (settings.sleepCheckInterval && settings.sleepCheckInterval !== sleepCheckIntervalMs) {
+                sleepCheckIntervalMs = settings.sleepCheckInterval;
+                initSleepCheck(); 
+            }
+            
             startIdleAnimation();
         });
 
