@@ -6,8 +6,8 @@ For the people that fall in love with the silly shark from night in the woods
 
 ## Controls
 
-For moving the sharkle around press control.
-For changing size and enable auto-launch right-click sharkle.
+For moving the sharkle around click and drag.
+For changing size, enabling auto-launch and more right-click sharkle!
 ![enter image description here](https://i.imgur.com/FTigXH3.png)
 
 The install for this is available for windows and linux** in the installer section
@@ -17,17 +17,18 @@ The install for this is available for windows and linux** in the installer secti
 ### windows release
 download, install and execute just easy as that. 
 
-### linux
+### linux (WIP)
 Download the sharkle.appImage and place it somewhere safe. Then open it doing `./sharkle.appImage` after that it should just open.
 
 
 If you enable auto-launch you shouldn't move the appImage file from place. 
 The sharkle will appear in the tasks list (the one from alt + tab) -anyone who want to help with that also appreciated-
 
-Notes from Collie: Linux download currently not existent for this version, sadly. I'll add one soon. This whole version is just fine tuning/tweaks of the original app by Ignacio! 
+### Notes from Collie <3
+This whole version is just fine tuning/tweaks of the original app by Ignacio! Check him out!
 
-**install is currently in a rar because i made it too big. (>100 mb oopsy)... So ill fix that soon!
+Sadly no linux download right now :C
 
-updates: better draggin, transparent parts sprites now clickable, more sounds, added eepy
+updates so far: better draggin, transparent parts sprites now clickable, more sounds, added eepy
 
-current todo: Add strolling, Add speed up on middle click, maybe angy
+current todo: Add strolling, Add speed up on middle click, maybe angy and more east eggs! Making this a real desktop pet.
