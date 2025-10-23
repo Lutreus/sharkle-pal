@@ -8,8 +8,23 @@
     "dist": "electron-builder -w"
   },
   "build": {
+    "asar": true,
     "appId": "sharkle-pal",
-    "icon": "icon.png" 
+    "icon": "icon.png",
+    "compression": "maximum",
+    "files": [
+      "main.js",
+      "index.html",
+      "package.json",
+      "node_modules/**/*",
+      "sharkleSound*.aac",
+      "animation-*.webp",
+      "drag.webp",
+      "drag2.webp",
+      "eepy.webp",
+      "eepy2.webp",
+      "icon.png"
+    ]
   },
   "repository": {
     "type": "git",
