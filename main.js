@@ -122,9 +122,10 @@ function updateAutolaunchMenuOptionTo(isEnabled) {
     updateFullMenu();
 }
 function populateMenuWithEverythingButTheAutolaunch(menu) {
-    menu.append(new MenuItem({ label: 'Small Sharkle', click: () => resizeWindow(80) }));
-    menu.append(new MenuItem({ label: 'Medium Sharkle', click: () => resizeWindow(140) }));
-    menu.append(new MenuItem({ label: 'Big Sharkle', click: () => resizeWindow(240) }));
+    menu.append(new MenuItem({ label: 'Teeny Sharkle', click: () => resizeWindow(80) }));
+    menu.append(new MenuItem({ label: 'Small Sharkle', click: () => resizeWindow(140) }));
+    menu.append(new MenuItem({ label: 'Medium Sharkle', click: () => resizeWindow(240) }));
+    menu.append(new MenuItem({ label: 'Big Sharkle', click: () => resizeWindow(360) }));
     menu.append(new MenuItem({ label: 'Jumbo Sharkle', click: () => resizeWindow(480) }));
     menu.append(new MenuItem({ type: 'separator' }));
     menu.append(new MenuItem({
