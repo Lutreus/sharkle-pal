@@ -37,7 +37,7 @@ function sendSettingsToRenderer() {
         win.webContents.send('load-settings', {
             inverted: isInvertedState,
             size: currentWindowSize,
-            sleepCheckInterval: getSleepCheckInterval() // New: Send the calculated interval
+            sleepCheckInterval: getSleepCheckInterval() 
         });
     }
 }

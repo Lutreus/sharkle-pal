@@ -26,4 +26,4 @@ This whole version is just fine tuning/tweaks of the original app by Ignacio! Ch
 
 updates so far: better draggin, transparent parts sprites now clickable, more sounds, added eepy
 
-current todo: Add strolling, Add speed up on middle click, maybe angy and more easter eggs! Making this a real desktop pet.
+Current MAJOR issue: Electron no longer supports click-through transparency. This is something i'll attempt to fix soon or migrate the app to something that supports it.
