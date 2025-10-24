@@ -22,6 +22,8 @@ I ran into an issue with my gpu running this on my linux machine, so if you run 
 If you enable auto-launch you shouldn't move the appImage file from place. 
 The sharkle will appear in the tasks list (the one from alt + tab) -anyone who want to help with that also appreciated-
 
+I cannot test it on linux mint <//3 because it will not run. I'll look into porting the code to tauri!
+
 ### Notes from Collie <3
 This whole version is just fine tuning/tweaks of the original app by Ignacio! Check him out!
 
