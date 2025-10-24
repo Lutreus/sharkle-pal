@@ -3,8 +3,8 @@ const windowStateKeeper = require('electron-window-state');
 const AutoLaunch = require('auto-launch');
 const Store = require('electron-store');
 let win = null;
-const SLEEPY_INTERVAL_MS = 10 * 60 * 1000; 
-const AWAKE_INTERVAL_MS = 30 * 60 * 1000; 
+const SLEEPY_INTERVAL_MS = 5 * 60 * 1000; 
+const AWAKE_INTERVAL_MS = 15 * 60 * 1000; 
 
 // Store information
 const store = new Store({
@@ -12,14 +12,13 @@ const store = new Store({
         invertedState: false,
         windowSize: 240,
         alwaysOnTopState: false,
-        sleepy: true 
+        sleepy: true  
     }
 });
 let currentWindowSize = store.get('windowSize', 240);
 let isInvertedState = store.get('invertedState');
 let isAlwaysOnTop = store.get('alwaysOnTopState', false);
 let sleepy = store.get('sleepy', true);
-
 let autolaunchConfig = { name: "SharklePal" };
 if (process.env.APPIMAGE) {
     autolaunchConfig.path = process.env.APPIMAGE;
@@ -27,7 +26,6 @@ if (process.env.APPIMAGE) {
 const autoLauncher = new AutoLaunch(autolaunchConfig);
 const disableAutolaunchLabel = "I'm awful and I don't want to see Sharkie again";
 const enableAutolaunchLabel = "I really love Sharkie and I want it on my PC every time it starts";
-
 app.disableHardwareAcceleration();
 
 function getSleepCheckInterval() {

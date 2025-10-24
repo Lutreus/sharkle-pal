@@ -1,11 +1,11 @@
 {
   "name": "sharkle-pal",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Html visualizer",
   "main": "main.js",
   "scripts": {
     "start": "electron . --enable-transparent-visuals",
-    "dist": "electron-builder -w"
+    "dist": "electron-builder -wl"
   },
   "build": {
     "asar": true,

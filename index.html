@@ -150,18 +150,15 @@
             mouseDownTime = Date.now();
             startGlobalX = e.screenX;
             startGlobalY = e.screenY;
-
             if (isSleeping && e.button === 0) {
                 startIdleAnimation();
             }
-        
             if (e.button === 2) { 
                 if (isSleeping) {
                     startIdleAnimation(); 
                 }
                 ipcRenderer.send('mouse-down', { button: e.button, x: e.clientX, y: e.clientY });
             }
-            
             document.body.setCapture && document.body.setCapture(); 
         });
 
@@ -182,7 +179,6 @@
             if (!isDraggingMode) {
                 const elapsedMs = Date.now() - mouseDownTime;
                 const distMoved = Math.hypot(e.screenX - startGlobalX, e.screenY - startGlobalY);
-
                 if (elapsedMs >= IS_DRAG_THRESHOLD_MS || distMoved > IS_CLICK_THRESHOLD_DIST) {
                     isDraggingMode = true;
                     startDragAnimation();
@@ -231,7 +227,6 @@
                 startIdleAnimation();
             }
         });
-        
     </script>
 </body>
 </html>
